@@ -1,0 +1,341 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".view.activity.NavigationActivity"
+    android:background="@drawable/background_navigation"
+    android:orientation="vertical"
+    android:keepScreenOn="true">
+
+  <LinearLayout
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:orientation="vertical"
+      android:padding="10dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center">
+
+      <LinearLayout
+          android:layout_width="0dp"
+          android:layout_height="wrap_content"
+          android:layout_weight="1"
+          android:orientation="vertical">
+
+        <TextView
+            android:text="@string/balance"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="@color/textSecondary"/>
+
+        <TextView
+            android:text="@string/example_balance"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:id="@+id/textViewBalance"
+            android:textColor="@color/textSecondary"
+            android:textSize="24sp"/>
+
+      </LinearLayout>
+
+      <ImageButton
+          android:layout_width="40dp"
+          android:layout_height="40dp"
+          app:srcCompat="@drawable/ic_baseline_power_settings_new"
+          android:id="@+id/imageButtonLogout"
+          android:background="@drawable/button_danger"
+          android:tint="@color/textSecondary"
+          android:contentDescription="@string/icon"/>
+
+    </LinearLayout>
+
+    <Space
+        android:layout_width="match_parent"
+        android:layout_height="10dp"/>
+
+    <TextView
+        android:text="@string/bot"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textColor="@color/textSecondary"/>
+
+    <TextView
+        android:text="@string/example_balance"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:id="@+id/textViewBalanceBot"
+        android:textColor="@color/textSecondary"
+        android:textSize="18sp"/>
+
+    <Space
+        android:layout_width="match_parent"
+        android:layout_height="10dp"/>
+
+    <TextView
+        android:text="@string/description_bot"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textColor="@color/textSecondary"
+        android:textAlignment="center"/>
+
+    <Space
+        android:layout_width="match_parent"
+        android:layout_height="5dp"/>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="@drawable/card"
+        android:padding="10dp"
+        android:elevation="10dp"
+        android:layout_margin="10dp">
+
+      <TextView
+          android:text="@string/name"
+          android:id="@+id/textViewName"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:gravity="center"/>
+
+      <Space
+          android:layout_width="match_parent"
+          android:layout_height="10dp"/>
+
+      <LinearLayout
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:orientation="horizontal">
+
+        <TextView
+            android:text="@string/username"
+            android:layout_width="100dp"
+            android:layout_height="wrap_content"/>
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:id="@+id/textViewUsername"
+            android:hint="@string/username"
+            android:layout_weight="1"
+            android:gravity="center"/>
+
+      </LinearLayout>
+
+      <Space
+          android:layout_width="match_parent"
+          android:layout_height="10dp"/>
+
+      <LinearLayout
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:orientation="horizontal">
+
+        <TextView
+            android:text="@string/email"
+            android:layout_width="100dp"
+            android:layout_height="wrap_content"/>
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:id="@+id/textViewEmail"
+            android:hint="@string/email"
+            android:layout_weight="1"
+            android:gravity="center"/>
+
+      </LinearLayout>
+
+      <Space
+          android:layout_width="match_parent"
+          android:layout_height="10dp"/>
+
+      <Button
+          android:visibility="gone"
+          android:text="@string/share_code"
+          android:layout_width="wrap_content"
+          android:layout_height="30dp"
+          android:id="@+id/buttonShareCode"
+          android:background="@drawable/button_danger"
+          android:textColor="@color/textSecondary"
+          android:layout_marginStart="10dp"
+          android:layout_marginEnd="10dp"
+          android:layout_gravity="end"
+          android:drawableStart="@drawable/ic_baseline_reply"
+          android:drawableTint="@color/textSecondary"
+          android:paddingStart="8dp"
+          android:paddingEnd="8dp"/>
+
+      <Space
+          android:layout_width="match_parent"
+          android:layout_height="10dp"/>
+
+    </LinearLayout>
+
+    <Space
+        android:layout_width="match_parent"
+        android:layout_height="5dp"/>
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@drawable/card"
+        android:elevation="5dp"
+        android:layout_marginBottom="10dp"
+        android:layout_marginStart="5dp"
+        android:layout_marginEnd="5dp">
+
+      <ImageButton
+          android:layout_width="0dp"
+          android:layout_height="40dp"
+          app:srcCompat="@drawable/ic_baseline_account_balance_wallet"
+          android:id="@+id/imageButtonDepositDoge"
+          app:layout_constraintTop_toTopOf="parent"
+          app:layout_constraintStart_toStartOf="parent"
+          app:layout_constraintEnd_toStartOf="@id/imageButtonDepositBot"
+          app:layout_constraintBottom_toTopOf="@id/textViewDepositDoge"
+          android:background="@drawable/button_warning"
+          android:tint="@color/textSecondary"
+          android:contentDescription="@string/icon"
+          android:scaleType="fitCenter"
+          android:layout_marginBottom="8dp"
+          android:layout_marginStart="8dp"
+          android:layout_marginEnd="8dp"
+          android:layout_marginTop="8dp"/>
+
+      <TextView
+          android:id="@+id/textViewDepositDoge"
+          android:layout_width="0dp"
+          android:layout_height="wrap_content"
+          android:textColor="@color/textPrimary"
+          android:textStyle="bold"
+          android:hint="@string/deposit_doge"
+          android:gravity="center"
+          app:layout_constraintTop_toBottomOf="@id/imageButtonDepositDoge"
+          app:layout_constraintStart_toStartOf="parent"
+          app:layout_constraintBottom_toTopOf="@id/imageButtonWithdrawDoge"
+          app:layout_constraintEnd_toStartOf="@id/textViewDepositBot"
+          android:layout_marginBottom="8dp"
+          android:layout_marginStart="8dp"
+          android:layout_marginEnd="8dp"/>
+
+      <ImageButton
+          android:layout_width="0dp"
+          android:layout_height="40dp"
+          app:srcCompat="@drawable/ic_baseline_account_balance_wallet"
+          android:id="@+id/imageButtonDepositBot"
+          app:layout_constraintTop_toTopOf="parent"
+          app:layout_constraintStart_toEndOf="@id/imageButtonDepositDoge"
+          app:layout_constraintEnd_toEndOf="parent"
+          app:layout_constraintBottom_toTopOf="@id/textViewDepositBot"
+          android:background="@drawable/button_primary"
+          android:tint="@color/textSecondary"
+          android:contentDescription="@string/icon"
+          android:scaleType="fitCenter"
+          android:layout_marginBottom="8dp"
+          android:layout_marginEnd="8dp"
+          android:layout_marginStart="8dp"
+          android:layout_marginTop="8dp"/>
+
+      <TextView
+          android:id="@+id/textViewDepositBot"
+          android:layout_width="0dp"
+          android:layout_height="wrap_content"
+          android:textColor="@color/textPrimary"
+          android:textStyle="bold"
+          android:hint="@string/deposit_bot"
+          android:gravity="center"
+          app:layout_constraintTop_toBottomOf="@id/imageButtonDepositBot"
+          app:layout_constraintStart_toEndOf="@id/textViewDepositDoge"
+          app:layout_constraintBottom_toTopOf="@id/imageButtonWithdrawBot"
+          app:layout_constraintEnd_toEndOf="parent"
+          android:layout_marginBottom="8dp"
+          android:layout_marginEnd="8dp"
+          android:layout_marginStart="8dp"/>
+
+      <ImageButton
+          android:layout_width="0dp"
+          android:layout_height="40dp"
+          app:srcCompat="@drawable/ic_baseline_swap_vertical_circle"
+          android:id="@+id/imageButtonWithdrawDoge"
+          app:layout_constraintTop_toBottomOf="@id/textViewDepositDoge"
+          app:layout_constraintStart_toStartOf="parent"
+          app:layout_constraintEnd_toStartOf="@id/imageButtonWithdrawBot"
+          app:layout_constraintBottom_toTopOf="@id/textViewWithdrawDoge"
+          android:background="@drawable/button_warning"
+          android:tint="@color/textSecondary"
+          android:contentDescription="@string/icon"
+          android:scaleType="fitCenter"
+          android:layout_marginBottom="8dp"
+          android:layout_marginStart="8dp"
+          android:layout_marginEnd="8dp"/>
+
+      <TextView
+          android:id="@+id/textViewWithdrawDoge"
+          android:layout_width="0dp"
+          android:layout_height="wrap_content"
+          android:textColor="@color/textPrimary"
+          android:textStyle="bold"
+          android:hint="@string/withdraw_doge"
+          android:gravity="center"
+          app:layout_constraintTop_toBottomOf="@+id/imageButtonWithdrawDoge"
+          app:layout_constraintStart_toStartOf="parent"
+          app:layout_constraintBottom_toBottomOf="parent"
+          app:layout_constraintEnd_toStartOf="@id/textViewWithdrawBot"
+          android:layout_marginBottom="8dp"
+          android:layout_marginStart="8dp"
+          android:layout_marginEnd="8dp"/>
+
+      <ImageButton
+          android:layout_width="0dp"
+          android:layout_height="40dp"
+          app:srcCompat="@drawable/ic_baseline_swap_vertical_circle"
+          android:id="@+id/imageButtonWithdrawBot"
+          app:layout_constraintTop_toBottomOf="@id/textViewDepositBot"
+          app:layout_constraintStart_toEndOf="@id/imageButtonWithdrawDoge"
+          app:layout_constraintEnd_toEndOf="parent"
+          app:layout_constraintBottom_toTopOf="@id/textViewWithdrawBot"
+          android:background="@drawable/button_primary"
+          android:tint="@color/textSecondary"
+          android:contentDescription="@string/icon"
+          android:scaleType="fitCenter"
+          android:layout_marginBottom="8dp"
+          android:layout_marginStart="8dp"
+          android:layout_marginEnd="8dp"/>
+
+      <TextView
+          android:id="@+id/textViewWithdrawBot"
+          android:layout_width="0dp"
+          android:layout_height="wrap_content"
+          android:textColor="@color/textPrimary"
+          android:textStyle="bold"
+          android:hint="@string/withdraw_bot"
+          android:gravity="center"
+          app:layout_constraintTop_toBottomOf="@+id/imageButtonWithdrawBot"
+          app:layout_constraintEnd_toEndOf="parent"
+          app:layout_constraintBottom_toBottomOf="parent"
+          app:layout_constraintStart_toEndOf="@id/textViewWithdrawDoge"
+          android:layout_marginBottom="8dp"
+          android:layout_marginEnd="8dp"
+          android:layout_marginStart="8dp"/>
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+  </LinearLayout>
+
+  <Space
+      android:layout_width="match_parent"
+      android:layout_height="5dp"/>
+
+  <FrameLayout
+      android:id="@+id/contentFragment"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"/>
+
+</LinearLayout>
