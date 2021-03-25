@@ -36,13 +36,6 @@
       app:layout_constraintBottom_toTopOf="@id/footer">
 
     <TextView
-        android:text="@string/mining_size"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:textColor="@color/textPrimary"
-        android:textAlignment="center"/>
-
-    <TextView
         android:text="@string/example_balance"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

@@ -183,7 +183,7 @@ class MiningActivity : AppCompatActivity() {
 
   override fun onBackPressed() {
     super.onBackPressed()
-    jobMining.cancel(CancellationException("Mining has been close"))
+    jobMining.cancel(CancellationException("Manual has been close"))
     val move = Intent(this, NavigationActivity::class.java)
     startActivity(move)
     finish()

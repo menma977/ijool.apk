@@ -181,7 +181,9 @@ class TsunamiActivity : AppCompatActivity() {
 
   override fun onBackPressed() {
     super.onBackPressed()
-    jobBot.cancel(CancellationException("Tsunami has been close"))
+    if (::jobBot.isInitialized) {
+      jobBot.cancel(CancellationException("Tsunami has been close"))
+    }
     val move = Intent(this, NavigationActivity::class.java)
     startActivity(move)
     finish()

@@ -214,7 +214,9 @@ class MoseeActivity : AppCompatActivity() {
 
   override fun onBackPressed() {
     super.onBackPressed()
-    jobBot.cancel(CancellationException("Mosee has been close"))
+    if (::jobBot.isInitialized) {
+      jobBot.cancel(CancellationException("Mosee has been close"))
+    }
     val move = Intent(this, NavigationActivity::class.java)
     startActivity(move)
     finish()
