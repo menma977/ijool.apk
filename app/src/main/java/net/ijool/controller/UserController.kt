@@ -6,39 +6,18 @@ import net.ijool.controller.web.PostController
 import net.ijool.model.User
 import okhttp3.FormBody
 import org.json.JSONObject
+import net.ijool.controller.volley.web.PostController as VolleyPostController
 
 class UserController {
   private lateinit var user: User
 
-  fun login(context: Context, username: String, password: String): JSONObject {
-    user = User(context)
-
-    val json = JSONObject()
-
-    val body = FormBody.Builder()
-    body.addEncoded("username", username)
-    body.addEncoded("password", password)
-
-    val post = PostController("login", body).call()
-
-    if (post.getInt("code") < 400) {
-      user.setString("name", post.getJSONObject("data").getString("name"))
-      user.setString("username", post.getJSONObject("data").getString("username"))
-      user.setString("email", post.getJSONObject("data").getString("email"))
-      user.setString("token", post.getJSONObject("data").getString("token"))
-      user.setString("cookie_doge", post.getJSONObject("data").getString("cookie_doge"))
-      user.setString("wallet_doge", post.getJSONObject("data").getString("wallet_doge"))
-      user.setString("cookie_bot", post.getJSONObject("data").getString("cookie_bot"))
-      user.setString("wallet_bot", post.getJSONObject("data").getString("wallet_bot"))
-
-      json.put("code", post.getInt("code"))
-    } else {
-      json.put("code", post.getInt("code"))
-      json.put("message", post.getString("data"))
-    }
-
-    return json
-  }
+  fun login(context: Context, username: String, password: String) = VolleyPostController(
+    context,
+    "login",
+    JSONObject()
+      .put("username", username)
+      .put("password", password)
+  )
 
   fun auth(context: Context): JSONObject {
     user = User(context)

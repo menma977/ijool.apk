@@ -5,7 +5,7 @@ import android.app.Activity
 import android.app.Dialog
 import net.ijool.R
 
-class Loading(activity: Activity) {
+class Loading(private val activity: Activity) {
   private val dialog = Dialog(activity, Theme_Translucent_NoTitleBar)
 
   init {
@@ -19,6 +19,11 @@ class Loading(activity: Activity) {
   }
 
   fun closeDialog() {
+    dialog.dismiss()
+  }
+
+  fun closeParent() {
+    activity.finish()
     dialog.dismiss()
   }
 }

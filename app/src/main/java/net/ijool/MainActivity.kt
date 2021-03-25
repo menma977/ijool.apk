@@ -1,9 +1,8 @@
 package net.ijool
 
 import android.content.Intent
-import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
-import android.util.Log
+import androidx.appcompat.app.AppCompatActivity
 import net.ijool.model.User
 import net.ijool.view.activity.LoginActivity
 import net.ijool.view.activity.NavigationActivity
@@ -20,8 +19,8 @@ class MainActivity : AppCompatActivity() {
 
     user = User(this)
 
-    Timer().schedule(1000) {
-      Log.i("token", user.getString("token"))
+    Timer().schedule(100) {
+      user.clear()
       if (user.getString("token").isNotEmpty()) {
         runOnUiThread {
           move = Intent(applicationContext, NavigationActivity::class.java)

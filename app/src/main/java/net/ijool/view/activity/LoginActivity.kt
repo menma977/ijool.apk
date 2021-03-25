@@ -4,19 +4,18 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
-import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import net.ijool.R
 import net.ijool.config.Loading
 import net.ijool.controller.UserController
+import net.ijool.controller.volley.web.HandleError
 import net.ijool.model.User
-import java.util.*
-import kotlin.concurrent.schedule
 
 class LoginActivity : AppCompatActivity() {
   private lateinit var user: User
@@ -41,27 +40,30 @@ class LoginActivity : AppCompatActivity() {
     signUp = findViewById(R.id.textViewRegister)
     forgetPassword = findViewById(R.id.textViewForgetPassword)
 
+    username.setText("menma977")
+    password.setText("ika120517")
+
     signIn.setOnClickListener {
       if (PackageManager.PERMISSION_GRANTED != ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)) {
         doRequestPermission()
       } else {
         loading.openDialog()
-        Timer().schedule(1000) {
-          val login = UserController().login(applicationContext, username.text.toString(), password.text.toString())
-          if (login.getInt("code") < 400) {
-            runOnUiThread {
-              move = Intent(applicationContext, NavigationActivity::class.java)
-              startActivity(move)
-              loading.closeDialog()
-              finish()
-            }
-          } else {
-            runOnUiThread {
-              loading.closeDialog()
-              Toast.makeText(applicationContext, login.getString("message"), Toast.LENGTH_LONG).show()
-            }
-          }
-        }
+        UserController().login(applicationContext, username.text.toString(), password.text.toString()).call({ response ->
+          user.setString("name", response.getString("name"))
+          user.setString("username", response.getString("username"))
+          user.setString("email", response.getString("email"))
+          user.setString("token", response.getString("token"))
+          user.setString("cookie_doge", response.getString("cookie_doge"))
+          user.setString("wallet_doge", response.getString("wallet_doge"))
+          user.setString("cookie_bot", response.getString("cookie_bot"))
+          user.setString("wallet_bot", response.getString("wallet_bot"))
+          move = Intent(applicationContext, NavigationActivity::class.java)
+          startActivity(move)
+          loading.closeParent()
+        }, { error ->
+          Toast.makeText(applicationContext, HandleError(error).result().getString("message"), Toast.LENGTH_LONG).show()
+          loading.closeDialog()
+        })
       }
     }
 
