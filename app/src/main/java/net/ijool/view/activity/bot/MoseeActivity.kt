@@ -1,26 +1,31 @@
 package net.ijool.view.activity.bot
 
+import android.content.Intent
 import android.os.Bundle
 import android.widget.Button
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.github.mikephil.charting.charts.LineChart
 import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.interfaces.datasets.ILineDataSet
+import kotlinx.coroutines.*
 import net.ijool.R
 import net.ijool.config.Coin
 import net.ijool.config.Loading
 import net.ijool.controller.BotController
 import net.ijool.controller.NavigationController
+import net.ijool.view.activity.NavigationActivity
 import java.math.BigDecimal
 import java.util.*
-import kotlin.concurrent.schedule
 
 class MoseeActivity : AppCompatActivity() {
   private lateinit var loading: Loading
   private lateinit var chart: LineChart
+  private lateinit var jobLoadBalance: CompletableJob
+  private lateinit var jobBot: CompletableJob
   private lateinit var payInRawDefault: BigDecimal
   private lateinit var payInRaw: BigDecimal
   private lateinit var balanceRaw: BigDecimal
@@ -35,7 +40,6 @@ class MoseeActivity : AppCompatActivity() {
   private lateinit var arrayLineDataSet: ArrayList<ILineDataSet>
   private lateinit var lineData: LineData
   private var indexChart: Float = 0F
-  private var isRunning: Boolean = false
   private var formula: Int = 1
   private var target = BigDecimal(0.06)
   private var lose = BigDecimal(5)
@@ -55,35 +59,30 @@ class MoseeActivity : AppCompatActivity() {
     stop = findViewById(R.id.buttonStop)
 
     start.setOnClickListener {
-      loading.openDialog()
-      Timer().schedule(100) {
-        balanceRaw = NavigationController().getBalance(applicationContext, true).toBigDecimal()
-        payInRaw = Coin.coinToDecimal(BigDecimal(0.001))
-        payInRawDefault = payInRaw
-        balanceRawTarget = Coin.coinToDecimal(Coin.decimalToCoin(balanceRaw + (balanceRaw * target)))
-        balanceRawLose = Coin.coinToDecimal(Coin.decimalToCoin(balanceRaw - (balanceRaw * lose)))
-        formula = 1
-        runOnUiThread {
-          payIn.text = "${Coin.decimalToCoin(payInRaw).toPlainString()} DOGE"
-          loading.closeDialog()
-          onBot()
-        }
-      }
+      initBot()
     }
 
     stop.setOnClickListener {
-      isRunning = false
+      jobBot.cancel(CancellationException("Stop"))
       start.isEnabled = true
       stop.isEnabled = false
     }
 
-    Timer().schedule(100) {
+    initBalance()
+  }
+
+  private fun initBalance() {
+    loading.openDialog()
+    if (!::jobLoadBalance.isInitialized || jobLoadBalance.isCompleted) {
+      jobLoadBalance = Job()
+    }
+    CoroutineScope(Dispatchers.IO + jobLoadBalance).launch {
       balanceRaw = NavigationController().getBalance(applicationContext, true).toBigDecimal()
-      payInRaw = Coin.coinToDecimal(BigDecimal(0.001))
+      payInRaw = Coin.coinToDecimal(BigDecimal(0.01))
       payInRawDefault = payInRaw
       balanceRawTarget = Coin.coinToDecimal(Coin.decimalToCoin(balanceRaw + (balanceRaw * target)))
       balanceRawLose = Coin.coinToDecimal(Coin.decimalToCoin(balanceRaw - (balanceRaw * lose)))
-      runOnUiThread {
+      GlobalScope.launch(Dispatchers.Main) {
         setupChart()
         payIn.text = "${Coin.decimalToCoin(payInRaw).toPlainString()} DOGE"
         balance.text = "${Coin.decimalToCoin(balanceRaw).toPlainString()} DOGE"
@@ -92,36 +91,56 @@ class MoseeActivity : AppCompatActivity() {
     }
   }
 
-  private fun onBot() {
+  private fun initBot() {
+    if (!::jobBot.isInitialized || jobBot.isCompleted) {
+      jobBot = Job()
+      jobBot.invokeOnCompletion { throwable ->
+        throwable?.message.let {
+          var message = it
+          if (message.isNullOrBlank()) {
+            message = "null error"
+          }
+          GlobalScope.launch(Dispatchers.Main) {
+            Toast.makeText(applicationContext, message, Toast.LENGTH_SHORT).show()
+          }
+        }
+      }
+    }
+    runBot()
+  }
+
+  private fun runBot() {
     start.isEnabled = false
     stop.isEnabled = true
-    isRunning = true
     var time = System.currentTimeMillis()
-    val trigger = Object()
-    Timer().schedule(100) {
+
+    CoroutineScope(Dispatchers.IO + jobBot).launch {
       while (balanceRaw in balanceRawLose..balanceRawTarget) {
+        if (jobBot.isCancelled) {
+          break
+        }
         val delta = System.currentTimeMillis() - time
         if (delta >= 2000) {
-          if (!isRunning) {
-            break
-          }
           time = System.currentTimeMillis()
-          synchronized(trigger) {
-            try {
-              payInRaw *= formula.toBigDecimal()
-              val post = BotController().ninku(applicationContext, payInRaw, seed, "940000")
-              if (post.getInt("code") < 400) {
+          try {
+            payInRaw *= formula.toBigDecimal()
+            val post = BotController().ninku(applicationContext, payInRaw, seed)
+            when {
+              post.getInt("code") < 400 -> {
                 runOnUiThread {
                   seed = post.getString("seed")
                   val responseBalance = post.getString("balance").toBigDecimal()
+                  val payInSend = payInRaw
 
-                  addChartData(Coin.decimalToCoin(responseBalance).toFloat())
-                  if (responseBalance < BigDecimal(0)) {
-                    balance.text = "LOSE"
-                    balance.setTextColor(getColor(R.color.Danger))
-                  } else {
-                    balance.text = "${Coin.decimalToCoin(responseBalance).toPlainString()} DOGE"
-                    payIn.text = "${Coin.decimalToCoin(payInRaw).toPlainString()} DOGE"
+                  GlobalScope.launch(Dispatchers.Main) {
+                    addChartData(Coin.decimalToCoin(responseBalance).toFloat())
+                    if (responseBalance < BigDecimal(0)) {
+                      balance.text = "LOSE"
+                      balance.setTextColor(getColor(R.color.Danger))
+                    } else {
+                      balance.text = "${Coin.decimalToCoin(responseBalance).toPlainString()} DOGE"
+                      payIn.text = "${Coin.decimalToCoin(payInSend).toPlainString()} DOGE"
+                    }
                   }
 
                   if (responseBalance < balanceRaw) {
@@ -135,27 +154,30 @@ class MoseeActivity : AppCompatActivity() {
                   }
 
                   balanceRaw = responseBalance
-                  payInRaw = Coin.coinToDecimal(BigDecimal(0.001))
-                }
-              } else if (post.getInt("code") == 408) {
-                isRunning = false
-              } else {
-                runOnUiThread {
-                  payInRaw = Coin.coinToDecimal(BigDecimal(0.001))
-                  balance.text = post.getString("message")
+                  payInRaw = Coin.coinToDecimal(BigDecimal(0.01))
                 }
               }
-            } catch (e: Exception) {
-              e.printStackTrace()
-              trigger.wait(60000)
+              post.getInt("code") == 408 -> {
+                jobBot.cancel(CancellationException("Insufficient Funds"))
+                break
+              }
+              else -> {
+                payInRaw = Coin.coinToDecimal(BigDecimal(0.01))
+                GlobalScope.launch(Dispatchers.Main) {
+                  balance.text = post.getString("message")
+                }
+                delay(60000)
+              }
             }
+          } catch (e: Exception) {
+            delay(60000)
           }
         }
       }
-      runOnUiThread {
+
+      GlobalScope.launch(Dispatchers.Main) {
         start.isEnabled = true
         stop.isEnabled = false
-        isRunning = false
       }
     }
   }
@@ -192,7 +214,9 @@ class MoseeActivity : AppCompatActivity() {
 
   override fun onBackPressed() {
     super.onBackPressed()
-    isRunning = false
+    jobBot.cancel(CancellationException("Mosee has been close"))
+    val move = Intent(this, NavigationActivity::class.java)
+    startActivity(move)
     finish()
   }
 }

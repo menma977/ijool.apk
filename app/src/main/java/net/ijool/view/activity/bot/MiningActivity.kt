@@ -1,5 +1,6 @@
 package net.ijool.view.activity.bot
 
+import android.content.Intent
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
@@ -8,17 +9,19 @@ import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import kotlinx.coroutines.*
 import net.ijool.R
 import net.ijool.config.Coin
 import net.ijool.controller.BotController
 import net.ijool.controller.NavigationController
 import net.ijool.model.User
+import net.ijool.view.activity.NavigationActivity
 import java.math.BigDecimal
-import java.util.*
-import kotlin.concurrent.schedule
 
 class MiningActivity : AppCompatActivity() {
   private lateinit var user: User
+  private lateinit var jobLoadBalance: CompletableJob
+  private lateinit var jobMining: CompletableJob
   private lateinit var balanceBot: TextView
   private lateinit var profit: TextView
   private lateinit var defaultAmount: EditText
@@ -55,9 +58,8 @@ class MiningActivity : AppCompatActivity() {
     amount.setText("0.01")
     chance.setText("49.99")
 
-    Timer().schedule(100) {
-      balanceBot.text = "${Coin.decimalToCoin(NavigationController().getBalance(applicationContext, true).toBigDecimal()).toPlainString()} DOGE"
-    }
+    initBalance()
+    initMining()
 
     defaultAmount.addTextChangedListener(object : TextWatcher {
       override fun afterTextChanged(s: Editable) {
@@ -79,7 +81,7 @@ class MiningActivity : AppCompatActivity() {
           amount.requestFocus()
         }
         else -> {
-          onMining()
+          initMining(true)
         }
       }
     }
@@ -121,31 +123,59 @@ class MiningActivity : AppCompatActivity() {
     }
   }
 
-  private fun onMining() {
-    miningButton.text = "Please wait..."
-    miningButton.isEnabled = false
-    Timer().schedule(10) {
-      val post = BotController().mining(applicationContext, amount.text.toString().toBigDecimal(), chance.text.toString().toBigDecimal())
-      if (post.getInt("code") < 400) {
-        runOnUiThread {
-          val balanceText = "${Coin.decimalToCoin(post.getString("balance").toBigDecimal()).toPlainString()} DOGE"
-          val profitText = "${Coin.decimalToCoin(post.getString("profit").toBigDecimal()).toPlainString()} DOGE"
-          balanceBot.text = balanceText
-          if (post.getString("profit").toBigDecimal() > BigDecimal(0)) {
-            profit.text = "WIN"
-            profit.setTextColor(getColor(R.color.Success))
-          } else {
-            profit.text = "LOSE"
-            profit.setTextColor(getColor(R.color.Danger))
+  private fun initBalance() {
+    if (!::jobLoadBalance.isInitialized || jobLoadBalance.isCompleted) {
+      jobLoadBalance = Job()
+    }
+    CoroutineScope(Dispatchers.IO + jobLoadBalance).launch {
+      val balanceRaw = NavigationController().getBalance(applicationContext, true).toBigDecimal()
+      GlobalScope.launch(Dispatchers.Main) {
+        balanceBot.text = "${Coin.decimalToCoin(balanceRaw).toPlainString()} DOGE"
+      }
+    }
+  }
+
+  private fun initMining(isMining: Boolean = false) {
+    if (!::jobMining.isInitialized || jobMining.isCompleted) {
+      jobMining = Job()
+      jobMining.invokeOnCompletion { throwable ->
+        throwable?.message.let {
+          var message = it
+          if (message.isNullOrBlank()) {
+            message = "null error"
           }
-          miningButton.text = "Mining"
-          miningButton.isEnabled = true
+          GlobalScope.launch(Dispatchers.Main) {
+            Toast.makeText(applicationContext, message, Toast.LENGTH_SHORT).show()
+          }
         }
-      } else {
-        runOnUiThread {
-          miningButton.text = "Mining"
-          miningButton.isEnabled = true
-          Toast.makeText(applicationContext, post.getString("message"), Toast.LENGTH_LONG).show()
+      }
+    }
+
+    if (isMining) {
+      miningButton.text = "Please wait..."
+      miningButton.isEnabled = false
+      CoroutineScope(Dispatchers.IO + jobMining).launch {
+        val post = BotController().mining(applicationContext, amount.text.toString().toBigDecimal(), chance.text.toString().toBigDecimal())
+        if (post.getInt("code") < 400) {
+          GlobalScope.launch(Dispatchers.Main) {
+            val balanceText = "${Coin.decimalToCoin(post.getString("balance").toBigDecimal()).toPlainString()} DOGE"
+            balanceBot.text = balanceText
+            if (post.getString("profit").toBigDecimal() > BigDecimal(0)) {
+              profit.text = "WIN"
+              profit.setTextColor(getColor(R.color.Success))
+            } else {
+              profit.text = "LOSE"
+              profit.setTextColor(getColor(R.color.Danger))
+            }
+            miningButton.text = "Mining"
+            miningButton.isEnabled = true
+          }
+        } else {
+          jobMining.cancel(CancellationException(post.getString("message")))
+          GlobalScope.launch(Dispatchers.Main) {
+            miningButton.text = "Mining"
+            miningButton.isEnabled = true
+          }
         }
       }
     }
@@ -153,6 +183,9 @@ class MiningActivity : AppCompatActivity() {
 
   override fun onBackPressed() {
     super.onBackPressed()
+    jobMining.cancel(CancellationException("Mining has been close"))
+    val move = Intent(this, NavigationActivity::class.java)
+    startActivity(move)
     finish()
   }
 }

@@ -40,16 +40,19 @@ class BotFragment : Fragment() {
     moseeButton.setOnClickListener {
       move = Intent(parentActivity, MoseeActivity::class.java)
       startActivity(move)
+      parentActivity.finish()
     }
 
     ninkuButton.setOnClickListener {
       move = Intent(parentActivity, NinkuActivity::class.java)
       startActivity(move)
+      parentActivity.finish()
     }
 
     tsunamiButton.setOnClickListener {
       move = Intent(parentActivity, TsunamiActivity::class.java)
       startActivity(move)
+      parentActivity.finish()
     }
 
     return view

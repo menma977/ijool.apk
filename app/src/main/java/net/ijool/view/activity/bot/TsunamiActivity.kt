@@ -1,28 +1,32 @@
 package net.ijool.view.activity.bot
 
-import androidx.appcompat.app.AppCompatActivity
+import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import android.widget.Button
 import android.widget.TextView
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
 import com.github.mikephil.charting.charts.LineChart
 import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.interfaces.datasets.ILineDataSet
+import kotlinx.coroutines.*
 import net.ijool.R
 import net.ijool.config.Coin
 import net.ijool.config.Loading
 import net.ijool.controller.BotController
 import net.ijool.controller.NavigationController
-import java.lang.Exception
+import net.ijool.view.activity.NavigationActivity
 import java.math.BigDecimal
 import java.util.*
-import kotlin.concurrent.schedule
 
 class TsunamiActivity : AppCompatActivity() {
   private lateinit var loading: Loading
   private lateinit var chart: LineChart
+  private lateinit var jobLoadBalance: CompletableJob
+  private lateinit var jobBot: CompletableJob
   private lateinit var balanceRaw: BigDecimal
   private lateinit var balance: TextView
   private lateinit var start: Button
@@ -32,7 +36,6 @@ class TsunamiActivity : AppCompatActivity() {
   private lateinit var arrayLineDataSet: ArrayList<ILineDataSet>
   private lateinit var lineData: LineData
   private var indexChart: Float = 0F
-  private var isRunning: Boolean = false
   private var seed: String = (0..99999).random().toString()
 
   override fun onCreate(savedInstanceState: Bundle?) {
@@ -48,18 +51,26 @@ class TsunamiActivity : AppCompatActivity() {
     stop = findViewById(R.id.buttonStop)
 
     start.setOnClickListener {
-      onBot()
+      initBot()
     }
 
     stop.setOnClickListener {
-      isRunning = false
+      jobBot.cancel(CancellationException("Stop"))
       start.isEnabled = true
       stop.isEnabled = false
     }
 
-    Timer().schedule(100) {
+    initBalance()
+  }
+
+  private fun initBalance() {
+    loading.openDialog()
+    if (!::jobLoadBalance.isInitialized || jobLoadBalance.isCompleted) {
+      jobLoadBalance = Job()
+    }
+    CoroutineScope(Dispatchers.IO + jobLoadBalance).launch {
       balanceRaw = NavigationController().getBalance(applicationContext, true).toBigDecimal()
-      runOnUiThread {
+      GlobalScope.launch(Dispatchers.Main) {
         setupChart()
         balance.text = "${Coin.decimalToCoin(balanceRaw).toPlainString()} DOGE"
         loading.closeDialog()
@@ -67,25 +78,42 @@ class TsunamiActivity : AppCompatActivity() {
     }
   }
 
-  private fun onBot() {
+  private fun initBot() {
+    if (!::jobBot.isInitialized || jobBot.isCompleted) {
+      jobBot = Job()
+      jobBot.invokeOnCompletion { throwable ->
+        throwable?.message.let {
+          var message = it
+          if (message.isNullOrBlank()) {
+            message = "null error"
+          }
+          GlobalScope.launch(Dispatchers.Main) {
+            Toast.makeText(applicationContext, message, Toast.LENGTH_SHORT).show()
+          }
+        }
+      }
+    }
+
+    runBot()
+  }
+
+  private fun runBot() {
     start.isEnabled = false
     stop.isEnabled = true
-    isRunning = true
     var time = System.currentTimeMillis()
-    val trigger = Object()
-    Timer().schedule(100) {
+    CoroutineScope(Dispatchers.IO + jobBot).launch {
       while (true) {
+        if (jobBot.isCancelled) {
+          break
+        }
         val delta = System.currentTimeMillis() - time
         if (delta >= 2000) {
-          if (!isRunning) {
-            break
-          }
           time = System.currentTimeMillis()
-          synchronized(trigger) {
-            try {
-              val post = BotController().tsunami(applicationContext, balanceRaw, seed)
-              Log.i("bet", post.toString())
-              if (post.getInt("code") < 400) {
+          try {
+            val post = BotController().tsunami(applicationContext, balanceRaw, seed)
+            Log.i("bet", post.toString())
+            when {
+              post.getInt("code") < 400 -> {
                 runOnUiThread {
                   val responseBalance = post.getString("balance").toBigDecimal()
                   addChartData(Coin.decimalToCoin(responseBalance).toFloat())
@@ -96,26 +124,35 @@ class TsunamiActivity : AppCompatActivity() {
                     balance.text = "${Coin.decimalToCoin(responseBalance).toPlainString()} DOGE"
                   }
                 }
-              } else if (post.getInt("code") == 408) {
-                isRunning = false
-              } else {
-                runOnUiThread {
+              }
+              post.getInt("code") == 408 -> {
+                jobBot.cancel(CancellationException("Insufficient Funds"))
+                break
+              }
+              else -> {
+                GlobalScope.launch(Dispatchers.Main) {
                   balance.text = post.getString("message")
                 }
+                delay(60000)
               }
-            } catch (e: Exception) {
-              trigger.wait(60000)
             }
+          } catch (e: Exception) {
+            delay(60000)
           }
         }
+      }
+
+      GlobalScope.launch(Dispatchers.Main) {
+        start.isEnabled = true
+        stop.isEnabled = false
       }
     }
   }
 
   private fun addChartData(balance: Float) {
     lineDataSet = chart.data.getDataSetByIndex(0) as LineDataSet
-    if (indexChart > 0.0020F) {
-      lineData.removeEntry(indexChart - 0.0021F, 0)
+    if (indexChart > 0.0015F) {
+      lineData.removeEntry(indexChart - 0.0016F, 0)
     }
     indexChart += 0.0001F
     lineData.addEntry(Entry(indexChart, balance), 0)
@@ -144,7 +181,9 @@ class TsunamiActivity : AppCompatActivity() {
 
   override fun onBackPressed() {
     super.onBackPressed()
-    isRunning = false
+    jobBot.cancel(CancellationException("Tsunami has been close"))
+    val move = Intent(this, NavigationActivity::class.java)
+    startActivity(move)
     finish()
   }
 }
