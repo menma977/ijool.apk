@@ -96,7 +96,7 @@
             android:contentDescription="@string/icon"/>
 
         <TextView
-            android:text="@string/ninku"
+            android:text="@string/tsunami"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:textSize="20sp"
@@ -114,7 +114,7 @@
           android:text="@string/open"
           android:layout_width="match_parent"
           android:layout_height="40dp"
-          android:id="@+id/buttonNinku"
+          android:id="@+id/buttonTsunami"
           android:background="@drawable/button_success"
           android:textColor="@color/textSecondary"/>
 
@@ -200,7 +200,7 @@
             android:contentDescription="@string/icon"/>
 
         <TextView
-            android:text="@string/tsunami"
+            android:text="@string/ninku"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:textSize="20sp"
@@ -218,7 +218,7 @@
           android:text="@string/open"
           android:layout_width="match_parent"
           android:layout_height="40dp"
-          android:id="@+id/buttonTsunami"
+          android:id="@+id/buttonNinku"
           android:background="@drawable/button_success"
           android:textColor="@color/textSecondary"/>
 

@@ -12,6 +12,7 @@ import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.interfaces.datasets.ILineDataSet
 import kotlinx.coroutines.*
+import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.Dispatchers.Main
 import net.ijool.R
 import net.ijool.config.Coin
@@ -101,10 +102,11 @@ class TsunamiActivity : AppCompatActivity() {
   }
 
   private fun runBot() {
+    val cookie = user.getString("cookie_bot")
     start.isEnabled = false
     stop.isEnabled = true
     var time = System.currentTimeMillis()
-    CoroutineScope(Dispatchers.IO + jobBot).launch {
+    CoroutineScope(IO + jobBot).launch {
       while (true) {
         if (jobBot.isCancelled) {
           break
@@ -113,7 +115,7 @@ class TsunamiActivity : AppCompatActivity() {
         if (delta >= 2000) {
           time = System.currentTimeMillis()
           try {
-            DogeController(applicationContext).tsunami(user.getString("cookie_bot"), balanceRaw, seed).cll({
+            DogeController(applicationContext).tsunami(cookie, balanceRaw, seed).cll({
               val response = JSONObject(it)
               val handler = HandleResponse(response).result()
               when {
@@ -176,8 +178,8 @@ class TsunamiActivity : AppCompatActivity() {
 
   private fun addChartData(balance: Float) {
     lineDataSet = chart.data.getDataSetByIndex(0) as LineDataSet
-    if (indexChart > 0.0020F) {
-      lineData.removeEntry(indexChart - 0.0021F, 0)
+    if (indexChart > 0.0010F) {
+      lineData.removeEntry(indexChart - 0.0011F, 0)
     }
     indexChart += 0.0001F
     lineData.addEntry(Entry(indexChart, balance), 0)
@@ -206,7 +208,9 @@ class TsunamiActivity : AppCompatActivity() {
 
   override fun onBackPressed() {
     super.onBackPressed()
-    jobBot.cancel(CancellationException("Tsunami has been close"))
+    if (::jobBot.isInitialized) {
+      jobBot.cancel(CancellationException("Tsunami has been close"))
+    }
     val move = Intent(this, NavigationActivity::class.java)
     startActivity(move)
     finish()

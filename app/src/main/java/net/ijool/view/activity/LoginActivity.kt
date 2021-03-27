@@ -40,8 +40,8 @@ class LoginActivity : AppCompatActivity() {
     signUp = findViewById(R.id.textViewRegister)
     forgetPassword = findViewById(R.id.textViewForgetPassword)
 
-    username.setText("menma977")
-    password.setText("ika120517")
+    //username.setText("menma977")
+    //password.setText("ika120517")
 
     signIn.setOnClickListener {
       if (PackageManager.PERMISSION_GRANTED != ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)) {

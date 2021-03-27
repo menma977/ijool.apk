@@ -6,11 +6,15 @@ import java.nio.charset.Charset
 
 class HandleError(private val error: VolleyError) {
   fun result(): JSONObject {
-    val raw = String(error.networkResponse.data, Charset.forName("utf-8"))
-    val jsonMessage: JSONObject = if (raw.isNotEmpty()) {
-      JSONObject(raw)
-    } else {
-      JSONObject().put("message", "something when wrong")
+    val jsonMessage: JSONObject = try {
+      val raw = String(error.networkResponse.data, Charset.forName("utf-8"))
+      if (raw.isNotEmpty()) {
+        JSONObject(raw)
+      } else {
+        JSONObject().put("message", "something when wrong")
+      }
+    } catch (e: Exception) {
+      JSONObject().put("message", e.localizedMessage)
     }
     return when {
       jsonMessage.toString().contains("ChanceTooHigh") -> {

@@ -12,12 +12,14 @@ import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.interfaces.datasets.ILineDataSet
 import kotlinx.coroutines.*
+import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.Dispatchers.Main
 import net.ijool.R
 import net.ijool.config.Coin
 import net.ijool.config.Loading
-import net.ijool.controller.BotController
 import net.ijool.controller.DogeController
+import net.ijool.controller.volley.doge.HandleError
+import net.ijool.controller.volley.doge.HandleResponse
 import net.ijool.model.User
 import net.ijool.view.activity.NavigationActivity
 import org.json.JSONObject
@@ -44,7 +46,7 @@ class MoseeActivity : AppCompatActivity() {
   private lateinit var lineData: LineData
   private var indexChart: Float = 0F
   private var formula: Int = 1
-  private var target = BigDecimal(0.06)
+  private var target = BigDecimal(0.02)
   private var lose = BigDecimal(0.5)
   private var seed: String = (0..99999).random().toString()
 
@@ -63,11 +65,16 @@ class MoseeActivity : AppCompatActivity() {
     stop = findViewById(R.id.buttonStop)
 
     start.setOnClickListener {
+      payInRaw = Coin.coinToDecimal(Coin.decimalToCoin(balanceRaw) * BigDecimal(0.001))
+      payInRawDefault = payInRaw
+      balanceRawTarget = Coin.coinToDecimal(Coin.decimalToCoin(balanceRaw + (balanceRaw * target)))
+      balanceRawLose = Coin.coinToDecimal(Coin.decimalToCoin(balanceRaw - (balanceRaw * lose)))
+
       initBot()
     }
 
     stop.setOnClickListener {
-      jobBot.cancel(CancellationException("Stop"))
+      jobBot.cancel(CancellationException("Mosee has been stop"))
       start.isEnabled = true
       stop.isEnabled = false
     }
@@ -80,7 +87,7 @@ class MoseeActivity : AppCompatActivity() {
     DogeController(this).balance(user.getString("cookie_bot")).cll({
       val response = JSONObject(it)
       balanceRaw = response.getString("Balance").toBigDecimal()
-      payInRaw = Coin.coinToDecimal(BigDecimal(0.01))
+      payInRaw = Coin.coinToDecimal(Coin.decimalToCoin(balanceRaw) * BigDecimal(0.001))
       payInRawDefault = payInRaw
       balanceRawTarget = Coin.coinToDecimal(Coin.decimalToCoin(balanceRaw + (balanceRaw * target)))
       balanceRawLose = Coin.coinToDecimal(Coin.decimalToCoin(balanceRaw - (balanceRaw * lose)))
@@ -113,11 +120,11 @@ class MoseeActivity : AppCompatActivity() {
   }
 
   private fun runBot() {
+    val cookie = user.getString("cookie_bot")
     start.isEnabled = false
     stop.isEnabled = true
     var time = System.currentTimeMillis()
-
-    CoroutineScope(Dispatchers.IO + jobBot).launch {
+    CoroutineScope(IO + jobBot).launch {
       while (balanceRaw in balanceRawLose..balanceRawTarget) {
         if (jobBot.isCancelled) {
           break
@@ -126,27 +133,19 @@ class MoseeActivity : AppCompatActivity() {
         if (delta >= 2000) {
           time = System.currentTimeMillis()
           try {
-            val post = BotController().ninku(applicationContext, payInRaw * formula.toBigDecimal(), seed)
-            when {
-              post.getInt("code") < 400 -> {
-                runOnUiThread {
-                  seed = post.getString("seed")
-                  val responseBalance = post.getString("balance").toBigDecimal()
-                  val payInSend = payInRaw
+            val payInToSend = payInRaw * formula.toBigDecimal()
+            DogeController(applicationContext).mosee(cookie, payInToSend, seed).cll({
+              val response = JSONObject(it)
+              val handler = HandleResponse(response).result()
+              when {
+                handler.getInt("code") == 200 -> {
+                  seed = response.getString("Next")
+                  val payOut = response.getString("PayOut").toBigDecimal()
+                  val profit = payOut - payInToSend
+                  val balanceRawResult = response.getString("StartingBalance").toBigDecimal() + profit
 
-                  GlobalScope.launch(Main) {
-                    addChartData(Coin.decimalToCoin(responseBalance).toFloat())
-                    if (responseBalance < BigDecimal(0)) {
-                      balance.text = "LOSE"
-                      balance.setTextColor(getColor(R.color.Danger))
-                    } else {
-                      balance.text = "${Coin.decimalToCoin(responseBalance).toPlainString()} DOGE"
-                      payIn.text = "${Coin.decimalToCoin(payInSend).toPlainString()} DOGE"
-                    }
-                  }
-
-                  if (responseBalance < balanceRaw) {
-                    formula += 19
+                  if (balanceRawResult < balanceRaw) {
+                    formula += 20
                   } else {
                     if (formula == 1) {
                       formula = 1
@@ -155,20 +154,49 @@ class MoseeActivity : AppCompatActivity() {
                     }
                   }
 
-                  balanceRaw = responseBalance
+                  GlobalScope.launch(Main) {
+                    addChartData(Coin.decimalToCoin(balanceRawResult).toFloat())
+                    if (profit < BigDecimal(0)) {
+                      balance.setTextColor(getColor(R.color.Danger))
+                      payIn.setTextColor(getColor(R.color.Danger))
+                    } else {
+                      balance.setTextColor(getColor(R.color.Success))
+                      payIn.setTextColor(getColor(R.color.Success))
+                    }
+
+                    balanceRaw = balanceRawResult
+                    balance.text = "${Coin.decimalToCoin(balanceRawResult).toPlainString()} DOGE"
+                    payIn.text = "${Coin.decimalToCoin(payInToSend).toPlainString()} DOGE"
+                  }
+                }
+                handler.getInt("code") == 408 -> {
+                  GlobalScope.launch(Main) {
+                    jobBot.cancel(CancellationException("Insufficient Funds"))
+                  }
+                }
+                else -> {
+                  GlobalScope.launch(Main) {
+                    Toast.makeText(applicationContext, handler.getString("data"), Toast.LENGTH_SHORT).show()
+                    delay(30000)
+                  }
                 }
               }
-              post.getInt("code") == 408 -> {
-                jobBot.cancel(CancellationException("Insufficient Funds"))
-                break
-              }
-              else -> {
-                GlobalScope.launch(Main) {
-                  balance.text = post.getString("message")
+            }, {
+              val error = HandleError(it).result()
+              when {
+                error.getInt("code") == 408 -> {
+                  GlobalScope.launch(Main) {
+                    jobBot.cancel(CancellationException("Insufficient Funds"))
+                  }
                 }
-                delay(60000)
+                else -> {
+                  GlobalScope.launch(Main) {
+                    Toast.makeText(applicationContext, error.getString("message"), Toast.LENGTH_SHORT).show()
+                    delay(30000)
+                  }
+                }
               }
-            }
+            })
           } catch (e: Exception) {
             delay(60000)
           }
@@ -184,8 +212,8 @@ class MoseeActivity : AppCompatActivity() {
 
   private fun addChartData(balance: Float) {
     lineDataSet = chart.data.getDataSetByIndex(0) as LineDataSet
-    if (indexChart > 0.0020F) {
-      lineData.removeEntry(indexChart - 0.0021F, 0)
+    if (indexChart > 0.0010F) {
+      lineData.removeEntry(indexChart - 0.0011F, 0)
     }
     indexChart += 0.0001F
     lineData.addEntry(Entry(indexChart, balance), 0)
@@ -214,7 +242,9 @@ class MoseeActivity : AppCompatActivity() {
 
   override fun onBackPressed() {
     super.onBackPressed()
-    jobBot.cancel(CancellationException("Mosee has been close"))
+    if (::jobBot.isInitialized) {
+      jobBot.cancel(CancellationException("Mosee has been close"))
+    }
     val move = Intent(this, NavigationActivity::class.java)
     startActivity(move)
     finish()

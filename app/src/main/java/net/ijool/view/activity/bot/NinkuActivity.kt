@@ -118,6 +118,7 @@ class NinkuActivity : AppCompatActivity() {
   }
 
   private fun runBot() {
+    val cookie = user.getString("cookie_bot")
     start.isEnabled = false
     stop.isEnabled = true
     var time = System.currentTimeMillis()
@@ -130,20 +131,17 @@ class NinkuActivity : AppCompatActivity() {
         if (delta >= 2000) {
           time = System.currentTimeMillis()
           try {
-            println("balance : $balanceRaw")
-            println("target : $balanceRawTarget")
-            println("lose : $balanceRawLose")
-            DogeController(applicationContext).ninku(user.getString("cookie_bot"), balanceRaw, seed).cll({
+            DogeController(applicationContext).ninku(cookie, balanceRaw, seed).cll({
               val response = JSONObject(it)
               val handler = HandleResponse(response).result()
               when {
                 handler.getInt("code") == 200 -> {
+                  seed = response.getString("Next")
+                  val payOut = response.getString("PayOut").toBigDecimal()
+                  val payInRaw = response.getString("PayIn").toBigDecimal()
+                  val profit = payOut + payInRaw
+                  val balanceRawResult = response.getString("StartingBalance").toBigDecimal() + profit
                   GlobalScope.launch(Main) {
-                    seed = response.getString("Next")
-                    val payOut = response.getString("PayOut").toBigDecimal()
-                    val payInRaw = response.getString("PayIn").toBigDecimal()
-                    val profit = payOut + payInRaw
-                    val balanceRawResult = response.getString("StartingBalance").toBigDecimal() + profit
                     addChartData(Coin.decimalToCoin(balanceRawResult).toFloat())
                     if (profit < BigDecimal(0)) {
                       balance.setTextColor(getColor(R.color.Danger))
@@ -201,8 +199,8 @@ class NinkuActivity : AppCompatActivity() {
 
   private fun addChartData(balance: Float) {
     lineDataSet = chart.data.getDataSetByIndex(0) as LineDataSet
-    if (indexChart > 0.0020F) {
-      lineData.removeEntry(indexChart - 0.0021F, 0)
+    if (indexChart > 0.0010F) {
+      lineData.removeEntry(indexChart - 0.0011F, 0)
     }
     indexChart += 0.0001F
     lineData.addEntry(Entry(indexChart, balance), 0)
@@ -231,7 +229,9 @@ class NinkuActivity : AppCompatActivity() {
 
   override fun onBackPressed() {
     super.onBackPressed()
-    jobBot.cancel(CancellationException("Ninku has been close"))
+    if (::jobBot.isInitialized) {
+      jobBot.cancel(CancellationException("Ninku has been close"))
+    }
     val move = Intent(this, NavigationActivity::class.java)
     startActivity(move)
     finish()
