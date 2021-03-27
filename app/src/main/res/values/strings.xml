@@ -14,7 +14,7 @@
   <string name="name">Name</string>
   <string name="link">Link</string>
   <string name="open">Open</string>
-  <string name="mining">MINING</string>
+  <string name="mining">Wager</string>
   <string name="icon">icon</string>
   <string name="ninku">Ninku</string>
   <string name="mosee">Mosee</string>
@@ -25,8 +25,8 @@
   <string name="funk">Funk</string>
   <string name="description_bot">IJOOL.NET is only a tool to facilitate users of using 999doge.com</string>
   <string name="withdraw">Deposit/Withdraw</string>
-  <string name="default_mining_size">Default Mining Size</string>
-  <string name="mining_size">Mining Size</string>
+  <string name="default_mining_size">Default Wager Size</string>
+  <string name="mining_size">Wager Size</string>
   <string name="reset">Reset</string>
   <string name="profit">Profit</string>
   <string name="half">Half</string>

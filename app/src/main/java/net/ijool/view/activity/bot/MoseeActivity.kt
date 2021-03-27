@@ -12,19 +12,22 @@ import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.interfaces.datasets.ILineDataSet
 import kotlinx.coroutines.*
+import kotlinx.coroutines.Dispatchers.Main
 import net.ijool.R
 import net.ijool.config.Coin
 import net.ijool.config.Loading
 import net.ijool.controller.BotController
-import net.ijool.controller.NavigationController
+import net.ijool.controller.DogeController
+import net.ijool.model.User
 import net.ijool.view.activity.NavigationActivity
+import org.json.JSONObject
 import java.math.BigDecimal
 import java.util.*
 
 class MoseeActivity : AppCompatActivity() {
+  private lateinit var user: User
   private lateinit var loading: Loading
   private lateinit var chart: LineChart
-  private lateinit var jobLoadBalance: CompletableJob
   private lateinit var jobBot: CompletableJob
   private lateinit var payInRawDefault: BigDecimal
   private lateinit var payInRaw: BigDecimal
@@ -42,13 +45,14 @@ class MoseeActivity : AppCompatActivity() {
   private var indexChart: Float = 0F
   private var formula: Int = 1
   private var target = BigDecimal(0.06)
-  private var lose = BigDecimal(5)
+  private var lose = BigDecimal(0.5)
   private var seed: String = (0..99999).random().toString()
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     setContentView(R.layout.activity_ninku)
 
+    user = User(this)
     loading = Loading(this)
     loading.openDialog()
 
@@ -73,22 +77,21 @@ class MoseeActivity : AppCompatActivity() {
 
   private fun initBalance() {
     loading.openDialog()
-    if (!::jobLoadBalance.isInitialized || jobLoadBalance.isCompleted) {
-      jobLoadBalance = Job()
-    }
-    CoroutineScope(Dispatchers.IO + jobLoadBalance).launch {
-      balanceRaw = NavigationController().getBalance(applicationContext, true).toBigDecimal()
+    DogeController(this).balance(user.getString("cookie_bot")).cll({
+      val response = JSONObject(it)
+      balanceRaw = response.getString("Balance").toBigDecimal()
       payInRaw = Coin.coinToDecimal(BigDecimal(0.01))
       payInRawDefault = payInRaw
       balanceRawTarget = Coin.coinToDecimal(Coin.decimalToCoin(balanceRaw + (balanceRaw * target)))
       balanceRawLose = Coin.coinToDecimal(Coin.decimalToCoin(balanceRaw - (balanceRaw * lose)))
-      GlobalScope.launch(Dispatchers.Main) {
-        setupChart()
-        payIn.text = "${Coin.decimalToCoin(payInRaw).toPlainString()} DOGE"
-        balance.text = "${Coin.decimalToCoin(balanceRaw).toPlainString()} DOGE"
-        loading.closeDialog()
-      }
-    }
+      setupChart()
+      payIn.text = "${Coin.decimalToCoin(payInRaw).toPlainString()} DOGE"
+      balance.text = "${Coin.decimalToCoin(balanceRaw).toPlainString()} DOGE"
+      loading.closeDialog()
+    }, {
+      balance.text = "0 DOGE"
+      loading.closeParent()
+    })
   }
 
   private fun initBot() {
@@ -100,7 +103,7 @@ class MoseeActivity : AppCompatActivity() {
           if (message.isNullOrBlank()) {
             message = "null error"
           }
-          GlobalScope.launch(Dispatchers.Main) {
+          GlobalScope.launch(Main) {
             Toast.makeText(applicationContext, message, Toast.LENGTH_SHORT).show()
           }
         }
@@ -123,8 +126,7 @@ class MoseeActivity : AppCompatActivity() {
         if (delta >= 2000) {
           time = System.currentTimeMillis()
           try {
-            payInRaw *= formula.toBigDecimal()
-            val post = BotController().ninku(applicationContext, payInRaw, seed)
+            val post = BotController().ninku(applicationContext, payInRaw * formula.toBigDecimal(), seed)
             when {
               post.getInt("code") < 400 -> {
                 runOnUiThread {
@@ -132,7 +134,7 @@ class MoseeActivity : AppCompatActivity() {
                   val responseBalance = post.getString("balance").toBigDecimal()
                   val payInSend = payInRaw
 
-                  GlobalScope.launch(Dispatchers.Main) {
+                  GlobalScope.launch(Main) {
                     addChartData(Coin.decimalToCoin(responseBalance).toFloat())
                     if (responseBalance < BigDecimal(0)) {
                       balance.text = "LOSE"
@@ -154,7 +156,6 @@ class MoseeActivity : AppCompatActivity() {
                   }
 
                   balanceRaw = responseBalance
-                  payInRaw = Coin.coinToDecimal(BigDecimal(0.01))
                 }
               }
               post.getInt("code") == 408 -> {
@@ -162,8 +163,7 @@ class MoseeActivity : AppCompatActivity() {
                 break
               }
               else -> {
-                payInRaw = Coin.coinToDecimal(BigDecimal(0.01))
-                GlobalScope.launch(Dispatchers.Main) {
+                GlobalScope.launch(Main) {
                   balance.text = post.getString("message")
                 }
                 delay(60000)
@@ -175,7 +175,7 @@ class MoseeActivity : AppCompatActivity() {
         }
       }
 
-      GlobalScope.launch(Dispatchers.Main) {
+      GlobalScope.launch(Main) {
         start.isEnabled = true
         stop.isEnabled = false
       }

@@ -1,17 +1,15 @@
 package net.ijool.controller
 
 import android.content.Context
-import net.ijool.controller.web.GetController
-import net.ijool.controller.web.PostController
 import net.ijool.model.User
-import okhttp3.FormBody
 import org.json.JSONObject
-import net.ijool.controller.volley.web.PostController as VolleyPostController
+import net.ijool.controller.volley.web.PostController
+import net.ijool.controller.volley.web.GetController
 
-class UserController {
-  private lateinit var user: User
+class UserController(private val context: Context) {
+  private var user: User = User(context)
 
-  fun login(context: Context, username: String, password: String) = VolleyPostController(
+  fun login(username: String, password: String) = PostController(
     context,
     "login",
     JSONObject()
@@ -19,91 +17,36 @@ class UserController {
       .put("password", password)
   )
 
-  fun auth(context: Context): JSONObject {
-    user = User(context)
+  fun auth() = GetController(
+    context,
+    "check",
+    user.getString("token")
+  )
 
-    val json = JSONObject()
+  fun subscribed() = GetController(
+    context,
+    "subscribe",
+    user.getString("token")
+  )
 
-    val get = GetController("check", user.getString("token")).call()
-    println(get)
-    when {
-      get.getBoolean("logout") -> {
-        json.put("code", get.getInt("code"))
-        json.put("auth", false)
-      }
-      get.getInt("code") < 400 -> {
-        json.put("code", get.getInt("code"))
-        json.put("auth", get.getJSONObject("data").getBoolean("auth"))
-      }
-      else -> {
-        json.put("code", get.getInt("code"))
-        json.put("auth", false)
-      }
-    }
+  fun withdraw(amount: String, wallet: String) = PostController(
+    context,
+    "coin.withdraw",
+    JSONObject()
+      .put("amount", amount)
+      .put("wallet", wallet),
+    user.getString("token")
+  )
 
-    return json
-  }
+  fun transfer(amount: String, type: String = "doge", isAll: Int = 0) = PostController(
+    context,
+    "coin.transfer",
+    JSONObject()
+      .put("amount", amount)
+      .put("type", type)
+      .put("all", isAll),
+    user.getString("token")
+  )
 
-  fun subscribed(context: Context): JSONObject {
-    user = User(context)
-
-    val json = JSONObject()
-
-    val get = GetController("subscribe", user.getString("token")).call()
-
-    json.put("code", get.getInt("code"))
-    if (get.getInt("code") < 400) {
-      json.put("subscribe", get.getJSONObject("data").getBoolean("subscribe"))
-    } else {
-      json.put("subscribe", false)
-      json.put("message", get.getString("data"))
-    }
-
-    return json
-  }
-
-  fun withdraw(context: Context, amount: String, wallet: String): JSONObject {
-    user = User(context)
-
-    val json = JSONObject()
-
-    val body = FormBody.Builder()
-    body.addEncoded("amount", amount)
-    body.addEncoded("wallet", wallet)
-
-    val post = PostController("coin.withdraw", user.getString("token"), body).call()
-
-    if (post.getInt("code") < 200) {
-      json.put("code", post.getInt("code"))
-      json.put("message", post.getString("data"))
-    } else {
-      json.put("code", post.getInt("code"))
-      json.put("message", post.getString("data"))
-    }
-
-    return json
-  }
-
-  fun transfer(context: Context, amount: String, type: String = "doge", isAll: Int = 0): JSONObject {
-    user = User(context)
-
-    val json = JSONObject()
-
-    val body = FormBody.Builder()
-    body.addEncoded("amount", amount)
-    body.addEncoded("type", type)
-    body.addEncoded("all", isAll.toString())
-
-    val post = PostController("coin.transfer", user.getString("token"), body).call()
-
-    if (post.getInt("code") < 200) {
-      json.put("code", post.getInt("code"))
-      json.put("message", post.getString("data"))
-    } else {
-      json.put("code", post.getInt("code"))
-      json.put("message", post.getString("data"))
-    }
-
-    return json
-  }
+  fun logout() = GetController(context, "logout", user.getString("token"))
 }

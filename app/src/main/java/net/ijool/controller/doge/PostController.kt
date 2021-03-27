@@ -33,7 +33,6 @@ class PostController(private var action: String, private var body: FormBody.Buil
       val convertJSON = JSONObject(raw)
       return responseHandler(response.code, convertJSON)
     } catch (e: Exception) {
-      e.printStackTrace()
       JSONObject().put("code", 500).put("data", e.message.toString().replace("999doge", "WEB"))
     }
   }

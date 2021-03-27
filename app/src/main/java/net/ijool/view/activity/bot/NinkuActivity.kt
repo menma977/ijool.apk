@@ -17,16 +17,19 @@ import kotlinx.coroutines.Dispatchers.Main
 import net.ijool.R
 import net.ijool.config.Coin
 import net.ijool.config.Loading
-import net.ijool.controller.BotController
-import net.ijool.controller.NavigationController
+import net.ijool.controller.DogeController
+import net.ijool.controller.volley.doge.HandleError
+import net.ijool.controller.volley.doge.HandleResponse
+import net.ijool.model.User
 import net.ijool.view.activity.NavigationActivity
+import org.json.JSONObject
 import java.math.BigDecimal
 import java.util.*
 
 class NinkuActivity : AppCompatActivity() {
+  private lateinit var user: User
   private lateinit var loading: Loading
   private lateinit var chart: LineChart
-  private lateinit var jobLoadBalance: CompletableJob
   private lateinit var jobBot: CompletableJob
   private lateinit var payInRawDefault: BigDecimal
   private lateinit var payInRaw: BigDecimal
@@ -42,15 +45,15 @@ class NinkuActivity : AppCompatActivity() {
   private lateinit var arrayLineDataSet: ArrayList<ILineDataSet>
   private lateinit var lineData: LineData
   private var indexChart: Float = 0F
-  private var formula: Int = 1
   private var target = BigDecimal(0.06)
-  private var lose = BigDecimal(5)
+  private var lose = BigDecimal(0.5)
   private var seed: String = (0..99999).random().toString()
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     setContentView(R.layout.activity_ninku)
 
+    user = User(this)
     loading = Loading(this)
 
     chart = findViewById(R.id.chart)
@@ -69,7 +72,7 @@ class NinkuActivity : AppCompatActivity() {
     }
 
     stop.setOnClickListener {
-      jobBot.cancel(CancellationException("Stop"))
+      jobBot.cancel(CancellationException("Ninku has been stop"))
       start.isEnabled = true
       stop.isEnabled = false
     }
@@ -79,22 +82,21 @@ class NinkuActivity : AppCompatActivity() {
 
   private fun initBalance() {
     loading.openDialog()
-    if (!::jobLoadBalance.isInitialized || jobLoadBalance.isCompleted) {
-      jobLoadBalance = Job()
-    }
-    CoroutineScope(IO + jobLoadBalance).launch {
-      balanceRaw = NavigationController().getBalance(applicationContext, true).toBigDecimal()
-      payInRaw = Coin.coinToDecimal(BigDecimal(0.1))
+    DogeController(this).balance(user.getString("cookie_bot")).cll({
+      val response = JSONObject(it)
+      balanceRaw = response.getString("Balance").toBigDecimal()
+      payInRaw = Coin.coinToDecimal(BigDecimal(0.01))
       payInRawDefault = payInRaw
       balanceRawTarget = Coin.coinToDecimal(Coin.decimalToCoin(balanceRaw + (balanceRaw * target)))
       balanceRawLose = Coin.coinToDecimal(Coin.decimalToCoin(balanceRaw - (balanceRaw * lose)))
-      GlobalScope.launch(Main) {
-        setupChart()
-        payIn.text = "${Coin.decimalToCoin(payInRaw).toPlainString()} DOGE"
-        balance.text = "${Coin.decimalToCoin(balanceRaw).toPlainString()} DOGE"
-        loading.closeDialog()
-      }
-    }
+      setupChart()
+      payIn.text = "${Coin.decimalToCoin(payInRaw).toPlainString()} DOGE"
+      balance.text = "${Coin.decimalToCoin(balanceRaw).toPlainString()} DOGE"
+      loading.closeDialog()
+    }, {
+      balance.text = "0 DOGE"
+      loading.closeParent()
+    })
   }
 
   private fun initBot() {
@@ -128,48 +130,62 @@ class NinkuActivity : AppCompatActivity() {
         if (delta >= 2000) {
           time = System.currentTimeMillis()
           try {
-            payInRaw *= formula.toBigDecimal()
-            val post = BotController().ninku(applicationContext, payInRaw, seed)
-            when {
-              post.getInt("code") < 400 -> {
-                runOnUiThread {
-                  seed = post.getString("seed")
-                  val responseBalance = post.getString("balance").toBigDecimal()
-                  val payInSend = payInRaw
-
+            println("balance : $balanceRaw")
+            println("target : $balanceRawTarget")
+            println("lose : $balanceRawLose")
+            DogeController(applicationContext).ninku(user.getString("cookie_bot"), balanceRaw, seed).cll({
+              val response = JSONObject(it)
+              val handler = HandleResponse(response).result()
+              when {
+                handler.getInt("code") == 200 -> {
                   GlobalScope.launch(Main) {
-                    addChartData(Coin.decimalToCoin(responseBalance).toFloat())
-                    if (responseBalance < BigDecimal(0)) {
-                      balance.text = "LOSE"
+                    seed = response.getString("Next")
+                    val payOut = response.getString("PayOut").toBigDecimal()
+                    val payInRaw = response.getString("PayIn").toBigDecimal()
+                    val profit = payOut + payInRaw
+                    val balanceRawResult = response.getString("StartingBalance").toBigDecimal() + profit
+                    addChartData(Coin.decimalToCoin(balanceRawResult).toFloat())
+                    if (profit < BigDecimal(0)) {
                       balance.setTextColor(getColor(R.color.Danger))
+                      payIn.setTextColor(getColor(R.color.Danger))
                     } else {
-                      balance.text = "${Coin.decimalToCoin(responseBalance).toPlainString()} DOGE"
-                      payIn.text = "${Coin.decimalToCoin(payInSend).toPlainString()} DOGE"
+                      balance.setTextColor(getColor(R.color.Success))
+                      payIn.setTextColor(getColor(R.color.Success))
                     }
-                  }
 
-                  if (responseBalance < balanceRaw) {
-                    formula *= 2
-                  } else {
-                    formula = 1
+                    balanceRaw = balanceRawResult
+                    balance.text = "${Coin.decimalToCoin(balanceRawResult).toPlainString()} DOGE"
+                    payIn.text = "${Coin.decimalToCoin(profit).toPlainString()} DOGE"
                   }
-
-                  balanceRaw = responseBalance
-                  payInRaw = Coin.coinToDecimal(BigDecimal(0.1))
+                }
+                handler.getInt("code") == 408 -> {
+                  GlobalScope.launch(Main) {
+                    jobBot.cancel(CancellationException("Insufficient Funds"))
+                  }
+                }
+                else -> {
+                  GlobalScope.launch(Main) {
+                    Toast.makeText(applicationContext, handler.getString("data"), Toast.LENGTH_SHORT).show()
+                    delay(30000)
+                  }
                 }
               }
-              post.getInt("code") == 408 -> {
-                jobBot.cancel(CancellationException("Insufficient Funds"))
-                break
-              }
-              else -> {
-                payInRaw = Coin.coinToDecimal(BigDecimal(0.1))
-                GlobalScope.launch(Main) {
-                  balance.text = post.getString("message")
+            }, {
+              val error = HandleError(it).result()
+              when {
+                error.getInt("code") == 408 -> {
+                  GlobalScope.launch(Main) {
+                    jobBot.cancel(CancellationException("Insufficient Funds"))
+                  }
                 }
-                delay(60000)
+                else -> {
+                  GlobalScope.launch(Main) {
+                    Toast.makeText(applicationContext, error.getString("message"), Toast.LENGTH_SHORT).show()
+                    delay(30000)
+                  }
+                }
               }
-            }
+            })
           } catch (e: Exception) {
             delay(60000)
           }

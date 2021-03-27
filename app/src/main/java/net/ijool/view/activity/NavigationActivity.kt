@@ -12,23 +12,27 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import kotlinx.coroutines.*
+import kotlinx.coroutines.Dispatchers.IO
+import kotlinx.coroutines.Dispatchers.Main
 import net.ijool.MainActivity
 import net.ijool.R
 import net.ijool.config.Coin
 import net.ijool.config.Loading
-import net.ijool.controller.NavigationController
+import net.ijool.controller.DogeController
 import net.ijool.controller.UserController
+import net.ijool.controller.volley.web.HandleError
 import net.ijool.model.User
 import net.ijool.service.Auth
 import net.ijool.service.Balance
 import net.ijool.view.fragment.BotFragment
 import net.ijool.view.modal.WalletModal
-import java.util.*
-import kotlin.concurrent.schedule
+import org.json.JSONObject
 
 class NavigationActivity : AppCompatActivity() {
   private lateinit var user: User
   private lateinit var loading: Loading
+  private lateinit var jobService: CompletableJob
   private lateinit var dogeBalance: Intent
   private lateinit var webAuth: Intent
   private lateinit var logout: ImageButton
@@ -68,14 +72,21 @@ class NavigationActivity : AppCompatActivity() {
     username.text = user.getString("username")
     email.text = user.getString("email")
 
-    Timer().schedule(100) {
-      val textBalance = "${Coin.decimalToCoin(NavigationController().getBalance(applicationContext).toBigDecimal()).toPlainString()} DOGE"
-      val textBalanceBot = "${Coin.decimalToCoin(NavigationController().getBalance(applicationContext, true).toBigDecimal()).toPlainString()} DOGE"
-      runOnUiThread {
-        balance.text = textBalance
-        balanceBot.text = textBalanceBot
-      }
-    }
+    DogeController(applicationContext).balance(user.getString("cookie_doge")).cll({
+      val response = JSONObject(it)
+      val textBalance = "${Coin.decimalToCoin(response.getString("Balance").toBigDecimal()).toPlainString()} DOGE"
+      balance.text = textBalance
+    }, {
+      balance.text = "0 DOGE"
+    })
+
+    DogeController(applicationContext).balance(user.getString("cookie_bot")).cll({
+      val response = JSONObject(it)
+      val textBalance = "${Coin.decimalToCoin(response.getString("Balance").toBigDecimal()).toPlainString()} DOGE"
+      balanceBot.text = textBalance
+    }, {
+      balanceBot.text = "0 DOGE"
+    })
 
     logout.setOnClickListener {
       onLogout()
@@ -103,39 +114,30 @@ class NavigationActivity : AppCompatActivity() {
   }
 
   private fun subscribed() {
-    Timer().schedule(100) {
-      val get = UserController().subscribed(applicationContext)
-      if (get.getInt("code") < 400) {
-        user.setBoolean("subscribe", get.getBoolean("subscribe"))
-        runOnUiThread {
-          loading.closeDialog()
-          if (user.getBoolean("subscribe")) {
-            frame.visibility = FrameLayout.VISIBLE
-            val fragment = BotFragment()
-            addFragment(fragment)
-          } else {
-            frame.visibility = FrameLayout.GONE
-          }
-        }
+    UserController(applicationContext).subscribed().call({ response ->
+      user.setBoolean("subscribe", response.getBoolean("subscribe"))
+      if (user.getBoolean("subscribe")) {
+        frame.visibility = FrameLayout.VISIBLE
+        val fragment = BotFragment()
+        addFragment(fragment)
       } else {
-        runOnUiThread {
-          loading.closeDialog()
-          Toast.makeText(applicationContext, get.getString("message"), Toast.LENGTH_LONG).show()
-        }
+        frame.visibility = FrameLayout.GONE
       }
-    }
+      loading.closeDialog()
+    }, { error ->
+      val json = HandleError(error).result()
+      Toast.makeText(applicationContext, json.getString("message"), Toast.LENGTH_LONG).show()
+      loading.closeDialog()
+    })
   }
 
   private fun authCheck() {
-    Timer().schedule(100) {
-      val get = UserController().auth(applicationContext)
-      user.setBoolean("auth", get.getBoolean("auth"))
-      if (user.getBoolean("auth")) {
-        subscribed()
-      } else {
-        onLogout()
-      }
-    }
+    UserController(this).auth().call({ response ->
+      user.setBoolean("auth", response.getBoolean("auth"))
+      subscribed()
+    }, {
+      onLogout()
+    })
   }
 
   private fun addFragment(fragment: Fragment) {
@@ -152,38 +154,61 @@ class NavigationActivity : AppCompatActivity() {
   }
 
   private fun runService() {
-    Timer().schedule(1000) {
+    if (!::jobService.isInitialized || jobService.isCompleted) {
+      jobService = Job()
+    }
+
+    CoroutineScope(IO + jobService).launch {
       dogeBalance = Intent(applicationContext, Balance::class.java)
       webAuth = Intent(applicationContext, Auth::class.java)
 
-      startService(dogeBalance)
-      startService(webAuth)
+      GlobalScope.launch(Main) {
+        startService(dogeBalance)
+        startService(webAuth)
 
-      LocalBroadcastManager.getInstance(applicationContext).registerReceiver(broadcastBalance, IntentFilter("doge.balances"))
-      LocalBroadcastManager.getInstance(applicationContext).registerReceiver(broadcastAuth, IntentFilter("web.auth"))
+        LocalBroadcastManager.getInstance(applicationContext).registerReceiver(broadcastBalance, IntentFilter("doge.balances"))
+        LocalBroadcastManager.getInstance(applicationContext).registerReceiver(broadcastBalanceBot, IntentFilter("doge.balances.bot"))
+        LocalBroadcastManager.getInstance(applicationContext).registerReceiver(broadcastAuth, IntentFilter("web.auth"))
+        jobService.cancel()
+      }
     }
   }
 
   private fun removeService() {
     LocalBroadcastManager.getInstance(this).unregisterReceiver(broadcastBalance)
+    LocalBroadcastManager.getInstance(this).unregisterReceiver(broadcastBalanceBot)
     LocalBroadcastManager.getInstance(this).unregisterReceiver(broadcastAuth)
 
-    stopService(dogeBalance)
-    stopService(webAuth)
+    if (this::dogeBalance.isInitialized) {
+      stopService(dogeBalance)
+    }
+
+    if (this::webAuth.isInitialized) {
+      stopService(webAuth)
+    }
   }
 
   private var broadcastBalance: BroadcastReceiver = object : BroadcastReceiver() {
     override fun onReceive(context: Context?, intent: Intent?) {
       var balanceText = "0 DOGE"
-      var balanceBotText = "0 DOGE"
       try {
         val getIntent = intent!!.extras!!
         balanceText = "${Coin.decimalToCoin(getIntent.getFloat("balance").toBigDecimal()).toPlainString()} DOGE"
-        balanceBotText = "${Coin.decimalToCoin(getIntent.getFloat("balanceBot").toBigDecimal()).toPlainString()} DOGE"
         balance.text = balanceText
-        balanceBot.text = balanceBotText
       } catch (e: Exception) {
         balance.text = balanceText
+      }
+    }
+  }
+
+  private var broadcastBalanceBot: BroadcastReceiver = object : BroadcastReceiver() {
+    override fun onReceive(context: Context?, intent: Intent?) {
+      var balanceBotText = "0 DOGE"
+      try {
+        val getIntent = intent!!.extras!!
+        balanceBotText = "${Coin.decimalToCoin(getIntent.getFloat("balanceBot").toBigDecimal()).toPlainString()} DOGE"
+        balanceBot.text = balanceBotText
+      } catch (e: Exception) {
         balanceBot.text = balanceBotText
       }
     }
@@ -204,15 +229,13 @@ class NavigationActivity : AppCompatActivity() {
 
   fun onLogout() {
     loading.openDialog()
-    Timer().schedule(100) {
-      NavigationController().logout(applicationContext)
-      user.clear()
-      runOnUiThread {
-        val move = Intent(applicationContext, MainActivity::class.java)
-        loading.closeDialog()
-        finish()
-        startActivity(move)
-      }
+    UserController(applicationContext).logout().call({}, {})
+    user.clear()
+    runOnUiThread {
+      val move = Intent(applicationContext, MainActivity::class.java)
+      loading.closeDialog()
+      finish()
+      startActivity(move)
     }
   }
 

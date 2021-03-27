@@ -2,7 +2,6 @@ package net.ijool.view.activity.bot
 
 import android.content.Intent
 import android.os.Bundle
-import android.util.Log
 import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
@@ -13,19 +12,23 @@ import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.interfaces.datasets.ILineDataSet
 import kotlinx.coroutines.*
+import kotlinx.coroutines.Dispatchers.Main
 import net.ijool.R
 import net.ijool.config.Coin
 import net.ijool.config.Loading
-import net.ijool.controller.BotController
-import net.ijool.controller.NavigationController
+import net.ijool.controller.DogeController
+import net.ijool.controller.volley.doge.HandleError
+import net.ijool.controller.volley.doge.HandleResponse
+import net.ijool.model.User
 import net.ijool.view.activity.NavigationActivity
+import org.json.JSONObject
 import java.math.BigDecimal
 import java.util.*
 
 class TsunamiActivity : AppCompatActivity() {
+  private lateinit var user: User
   private lateinit var loading: Loading
   private lateinit var chart: LineChart
-  private lateinit var jobLoadBalance: CompletableJob
   private lateinit var jobBot: CompletableJob
   private lateinit var balanceRaw: BigDecimal
   private lateinit var balance: TextView
@@ -36,12 +39,13 @@ class TsunamiActivity : AppCompatActivity() {
   private lateinit var arrayLineDataSet: ArrayList<ILineDataSet>
   private lateinit var lineData: LineData
   private var indexChart: Float = 0F
-  private var seed: String = (0..99999).random().toString()
+  private var seed: String = (100000..999999).random().toString()
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     setContentView(R.layout.activity_tsunami)
 
+    user = User(this)
     loading = Loading(this)
     loading.openDialog()
 
@@ -55,7 +59,7 @@ class TsunamiActivity : AppCompatActivity() {
     }
 
     stop.setOnClickListener {
-      jobBot.cancel(CancellationException("Stop"))
+      jobBot.cancel(CancellationException("Tsunami has been stop"))
       start.isEnabled = true
       stop.isEnabled = false
     }
@@ -65,17 +69,16 @@ class TsunamiActivity : AppCompatActivity() {
 
   private fun initBalance() {
     loading.openDialog()
-    if (!::jobLoadBalance.isInitialized || jobLoadBalance.isCompleted) {
-      jobLoadBalance = Job()
-    }
-    CoroutineScope(Dispatchers.IO + jobLoadBalance).launch {
-      balanceRaw = NavigationController().getBalance(applicationContext, true).toBigDecimal()
-      GlobalScope.launch(Dispatchers.Main) {
-        setupChart()
-        balance.text = "${Coin.decimalToCoin(balanceRaw).toPlainString()} DOGE"
-        loading.closeDialog()
-      }
-    }
+    DogeController(this).balance(user.getString("cookie_bot")).cll({
+      val response = JSONObject(it)
+      balanceRaw = response.getString("Balance").toBigDecimal()
+      setupChart()
+      balance.text = "${Coin.decimalToCoin(balanceRaw).toPlainString()} DOGE"
+      loading.closeDialog()
+    }, {
+      balance.text = "0 DOGE"
+      loading.closeParent()
+    })
   }
 
   private fun initBot() {
@@ -87,7 +90,7 @@ class TsunamiActivity : AppCompatActivity() {
           if (message.isNullOrBlank()) {
             message = "null error"
           }
-          GlobalScope.launch(Dispatchers.Main) {
+          GlobalScope.launch(Main) {
             Toast.makeText(applicationContext, message, Toast.LENGTH_SHORT).show()
           }
         }
@@ -110,39 +113,61 @@ class TsunamiActivity : AppCompatActivity() {
         if (delta >= 2000) {
           time = System.currentTimeMillis()
           try {
-            val post = BotController().tsunami(applicationContext, balanceRaw, seed)
-            Log.i("bet", post.toString())
-            when {
-              post.getInt("code") < 400 -> {
-                runOnUiThread {
-                  val responseBalance = post.getString("balance").toBigDecimal()
-                  addChartData(Coin.decimalToCoin(responseBalance).toFloat())
-                  if (responseBalance < BigDecimal(0)) {
-                    balance.text = "LOSE"
-                    balance.setTextColor(getColor(R.color.Danger))
-                  } else {
-                    balance.text = "${Coin.decimalToCoin(responseBalance).toPlainString()} DOGE"
+            DogeController(applicationContext).tsunami(user.getString("cookie_bot"), balanceRaw, seed).cll({
+              val response = JSONObject(it)
+              val handler = HandleResponse(response).result()
+              when {
+                handler.getInt("code") == 200 -> {
+                  GlobalScope.launch(Main) {
+                    seed = response.getString("Next")
+                    val payOut = response.getString("PayOut").toBigDecimal()
+                    val payIn = response.getString("PayIn").toBigDecimal()
+                    val profit = payOut + payIn
+                    val balanceRaw = response.getString("StartingBalance").toBigDecimal() + profit
+                    addChartData(Coin.decimalToCoin(balanceRaw).toFloat())
+                    if (profit < BigDecimal(0)) {
+                      balance.setTextColor(getColor(R.color.Danger))
+                    } else {
+                      balance.setTextColor(getColor(R.color.Success))
+                    }
+                    balance.text = "${Coin.decimalToCoin(balanceRaw).toPlainString()} DOGE"
+                  }
+                }
+                handler.getInt("code") == 408 -> {
+                  GlobalScope.launch(Main) {
+                    jobBot.cancel(CancellationException("Insufficient Funds"))
+                  }
+                }
+                else -> {
+                  GlobalScope.launch(Main) {
+                    Toast.makeText(applicationContext, handler.getString("data"), Toast.LENGTH_SHORT).show()
+                    delay(30000)
                   }
                 }
               }
-              post.getInt("code") == 408 -> {
-                jobBot.cancel(CancellationException("Insufficient Funds"))
-                break
-              }
-              else -> {
-                GlobalScope.launch(Dispatchers.Main) {
-                  balance.text = post.getString("message")
+            }, {
+              val error = HandleError(it).result()
+              when {
+                error.getInt("code") == 408 -> {
+                  GlobalScope.launch(Main) {
+                    jobBot.cancel(CancellationException("Insufficient Funds"))
+                  }
                 }
-                delay(60000)
+                else -> {
+                  GlobalScope.launch(Main) {
+                    Toast.makeText(applicationContext, error.getString("message"), Toast.LENGTH_SHORT).show()
+                    delay(30000)
+                  }
+                }
               }
-            }
+            })
           } catch (e: Exception) {
             delay(60000)
           }
         }
       }
 
-      GlobalScope.launch(Dispatchers.Main) {
+      GlobalScope.launch(Main) {
         start.isEnabled = true
         stop.isEnabled = false
       }
@@ -151,8 +176,8 @@ class TsunamiActivity : AppCompatActivity() {
 
   private fun addChartData(balance: Float) {
     lineDataSet = chart.data.getDataSetByIndex(0) as LineDataSet
-    if (indexChart > 0.0015F) {
-      lineData.removeEntry(indexChart - 0.0016F, 0)
+    if (indexChart > 0.0020F) {
+      lineData.removeEntry(indexChart - 0.0021F, 0)
     }
     indexChart += 0.0001F
     lineData.addEntry(Entry(indexChart, balance), 0)

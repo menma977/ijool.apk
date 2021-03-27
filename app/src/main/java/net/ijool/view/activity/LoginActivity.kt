@@ -48,7 +48,7 @@ class LoginActivity : AppCompatActivity() {
         doRequestPermission()
       } else {
         loading.openDialog()
-        UserController().login(applicationContext, username.text.toString(), password.text.toString()).call({ response ->
+        UserController(this).login(username.text.toString(), password.text.toString()).call({ response ->
           user.setString("name", response.getString("name"))
           user.setString("username", response.getString("username"))
           user.setString("email", response.getString("email"))

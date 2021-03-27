@@ -8,11 +8,10 @@ class HandleError(private val error: VolleyError) {
   @Suppress("RECEIVER_NULLABILITY_MISMATCH_BASED_ON_JAVA_ANNOTATIONS")
   fun result(): JSONObject {
     val raw = String(error.networkResponse.data, Charset.forName("utf-8"))
-    val jsonMessage: JSONObject
-    if (raw.isNotEmpty()) {
-      jsonMessage = JSONObject(raw)
+    val jsonMessage: JSONObject = if (raw.isNotEmpty()) {
+      JSONObject(raw)
     } else {
-      jsonMessage = JSONObject().put("message", "something when wrong")
+      JSONObject().put("message", "something when wrong")
     }
     return when (error.networkResponse.statusCode) {
       401 -> {

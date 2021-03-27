@@ -1,18 +1,22 @@
 package net.ijool.view.activity
 
-import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.widget.*
+import androidx.appcompat.app.AppCompatActivity
 import com.google.zxing.Result
+import kotlinx.coroutines.Dispatchers.Main
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 import me.dm7.barcodescanner.zxing.ZXingScannerView
 import net.ijool.R
 import net.ijool.config.Coin
 import net.ijool.config.Loading
-import net.ijool.controller.NavigationController
+import net.ijool.controller.DogeController
 import net.ijool.controller.UserController
+import net.ijool.controller.volley.web.HandleError
+import net.ijool.controller.volley.web.HandleResponse
 import net.ijool.model.User
-import java.util.*
-import kotlin.concurrent.schedule
+import org.json.JSONObject
 
 class WithdrawActivity : AppCompatActivity(), ZXingScannerView.ResultHandler {
   private lateinit var user: User
@@ -58,25 +62,33 @@ class WithdrawActivity : AppCompatActivity(), ZXingScannerView.ResultHandler {
       sendBalance()
     }
 
-    Timer().schedule(100) {
-      val textBalance = "${Coin.decimalToCoin(NavigationController().getBalance(applicationContext).toBigDecimal()).toPlainString()} DOGE"
-      runOnUiThread {
+    DogeController(this).balance(user.getString("cookie_doge")).cll({
+      val response = JSONObject(it)
+      val textBalance = "${Coin.decimalToCoin(response.getString("Balance").toBigDecimal()).toPlainString()} DOGE"
+      GlobalScope.launch(Main) {
         balance.text = textBalance
         loading.closeDialog()
       }
-    }
+    }, {
+      GlobalScope.launch(Main) {
+        balance.text = "0 DOGE"
+        loading.closeDialog()
+      }
+    })
   }
 
   private fun sendBalance() {
     loading.openDialog()
-    Timer().schedule(100) {
-      val post = UserController().withdraw(applicationContext, balanceText.text.toString(), walletText.text.toString())
-      runOnUiThread {
-        Toast.makeText(applicationContext, post.getString("message"), Toast.LENGTH_LONG).show()
-        loading.closeDialog()
-        finish()
-      }
-    }
+    var json: JSONObject
+    UserController(applicationContext).withdraw(balanceText.text.toString(), walletText.text.toString()).call({ response ->
+      json = HandleResponse(response).result()
+      Toast.makeText(applicationContext, json.getString("data"), Toast.LENGTH_LONG).show()
+      loading.closeParent()
+    }, { error ->
+      json = HandleError(error).result()
+      Toast.makeText(applicationContext, json.getString("message"), Toast.LENGTH_LONG).show()
+      loading.closeDialog()
+    })
   }
 
   override fun handleResult(rawResult: Result?) {

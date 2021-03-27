@@ -10,18 +10,18 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import kotlinx.coroutines.*
+import kotlinx.coroutines.Dispatchers.Main
 import net.ijool.R
 import net.ijool.config.Coin
-import net.ijool.controller.BotController
-import net.ijool.controller.NavigationController
+import net.ijool.controller.DogeController
+import net.ijool.controller.volley.doge.HandleError
 import net.ijool.model.User
 import net.ijool.view.activity.NavigationActivity
+import org.json.JSONObject
 import java.math.BigDecimal
 
 class MiningActivity : AppCompatActivity() {
   private lateinit var user: User
-  private lateinit var jobLoadBalance: CompletableJob
-  private lateinit var jobMining: CompletableJob
   private lateinit var balanceBot: TextView
   private lateinit var profit: TextView
   private lateinit var defaultAmount: EditText
@@ -59,7 +59,6 @@ class MiningActivity : AppCompatActivity() {
     chance.setText("49.99")
 
     initBalance()
-    initMining()
 
     defaultAmount.addTextChangedListener(object : TextWatcher {
       override fun afterTextChanged(s: Editable) {
@@ -73,7 +72,7 @@ class MiningActivity : AppCompatActivity() {
     miningButton.setOnClickListener {
       when {
         amount.text.toString().isEmpty() -> {
-          Toast.makeText(applicationContext, "Mining size required", Toast.LENGTH_LONG).show()
+          Toast.makeText(applicationContext, "Wager size required", Toast.LENGTH_LONG).show()
           amount.requestFocus()
         }
         chance.text.toString().isEmpty() -> {
@@ -81,7 +80,7 @@ class MiningActivity : AppCompatActivity() {
           amount.requestFocus()
         }
         else -> {
-          initMining(true)
+          initMining()
         }
       }
     }
@@ -124,66 +123,46 @@ class MiningActivity : AppCompatActivity() {
   }
 
   private fun initBalance() {
-    if (!::jobLoadBalance.isInitialized || jobLoadBalance.isCompleted) {
-      jobLoadBalance = Job()
-    }
-    CoroutineScope(Dispatchers.IO + jobLoadBalance).launch {
-      val balanceRaw = NavigationController().getBalance(applicationContext, true).toBigDecimal()
-      GlobalScope.launch(Dispatchers.Main) {
-        balanceBot.text = "${Coin.decimalToCoin(balanceRaw).toPlainString()} DOGE"
+    DogeController(this).balance(user.getString("cookie_bot")).cll({
+      val response = JSONObject(it)
+      val textBalance = "${Coin.decimalToCoin(response.getString("Balance").toBigDecimal()).toPlainString()} DOGE"
+      GlobalScope.launch(Main) {
+        balanceBot.text = textBalance
       }
-    }
+    }, {
+      GlobalScope.launch(Main) {
+        balanceBot.text = "0 DOGE"
+      }
+    })
   }
 
-  private fun initMining(isMining: Boolean = false) {
-    if (!::jobMining.isInitialized || jobMining.isCompleted) {
-      jobMining = Job()
-      jobMining.invokeOnCompletion { throwable ->
-        throwable?.message.let {
-          var message = it
-          if (message.isNullOrBlank()) {
-            message = "null error"
-          }
-          GlobalScope.launch(Dispatchers.Main) {
-            Toast.makeText(applicationContext, message, Toast.LENGTH_SHORT).show()
-          }
-        }
+  private fun initMining() {
+    miningButton.text = "Please wait..."
+    miningButton.isEnabled = false
+    DogeController(this).wager(user.getString("cookie_bot"), amount.text.toString().toBigDecimal(), chance.text.toString().toFloat(), (100000..999999).random().toString()).cll({
+      val response = JSONObject(it)
+      val payOut = response.getString("PayOut").toBigDecimal()
+      val resultProfit = payOut - Coin.coinToDecimal(amount.text.toString().toBigDecimal())
+      val balanceText = "${Coin.decimalToCoin(response.getString("StartingBalance").toBigDecimal()).toPlainString()} DOGE"
+      balanceBot.text = balanceText
+      if (resultProfit > BigDecimal(0)) {
+        profit.text = "WIN"
+        profit.setTextColor(getColor(R.color.Success))
+      } else {
+        profit.text = "LOSE"
+        profit.setTextColor(getColor(R.color.Danger))
       }
-    }
-
-    if (isMining) {
-      miningButton.text = "Please wait..."
-      miningButton.isEnabled = false
-      CoroutineScope(Dispatchers.IO + jobMining).launch {
-        val post = BotController().mining(applicationContext, amount.text.toString().toBigDecimal(), chance.text.toString().toBigDecimal())
-        if (post.getInt("code") < 400) {
-          GlobalScope.launch(Dispatchers.Main) {
-            val balanceText = "${Coin.decimalToCoin(post.getString("balance").toBigDecimal()).toPlainString()} DOGE"
-            balanceBot.text = balanceText
-            if (post.getString("profit").toBigDecimal() > BigDecimal(0)) {
-              profit.text = "WIN"
-              profit.setTextColor(getColor(R.color.Success))
-            } else {
-              profit.text = "LOSE"
-              profit.setTextColor(getColor(R.color.Danger))
-            }
-            miningButton.text = "Mining"
-            miningButton.isEnabled = true
-          }
-        } else {
-          jobMining.cancel(CancellationException(post.getString("message")))
-          GlobalScope.launch(Dispatchers.Main) {
-            miningButton.text = "Mining"
-            miningButton.isEnabled = true
-          }
-        }
-      }
-    }
+      miningButton.text = "Wager"
+      miningButton.isEnabled = true
+    }, { error ->
+      Toast.makeText(this, HandleError(error).result().getString("message"), Toast.LENGTH_SHORT).show()
+      miningButton.text = "Wager"
+      miningButton.isEnabled = true
+    })
   }
 
   override fun onBackPressed() {
     super.onBackPressed()
-    jobMining.cancel(CancellationException("Mining has been close"))
     val move = Intent(this, NavigationActivity::class.java)
     startActivity(move)
     finish()

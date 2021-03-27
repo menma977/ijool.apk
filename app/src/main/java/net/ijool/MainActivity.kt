@@ -20,7 +20,7 @@ class MainActivity : AppCompatActivity() {
     user = User(this)
 
     Timer().schedule(100) {
-      user.clear()
+      //user.clear()
       if (user.getString("token").isNotEmpty()) {
         runOnUiThread {
           move = Intent(applicationContext, NavigationActivity::class.java)
