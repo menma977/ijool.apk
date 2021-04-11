@@ -6,6 +6,8 @@ import android.os.IBinder
 import android.util.Log
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import kotlinx.coroutines.*
+import kotlinx.coroutines.Dispatchers.IO
+import kotlinx.coroutines.Dispatchers.Main
 import net.ijool.controller.UserController
 import net.ijool.model.User
 import java.util.*
@@ -28,7 +30,7 @@ class Auth : Service() {
     user = User(this)
     var time = System.currentTimeMillis()
 
-    CoroutineScope(Dispatchers.IO + job).launch {
+    CoroutineScope(IO + job).launch {
       while (true) {
         val delta = System.currentTimeMillis() - time
         if (delta >= 30000) {
@@ -41,7 +43,7 @@ class Auth : Service() {
                 privateIntent.action = "web.auth"
                 LocalBroadcastManager.getInstance(applicationContext).sendBroadcast(privateIntent)
               }, {
-                GlobalScope.launch(Dispatchers.Main) {
+                GlobalScope.launch(Main) {
                   delay(60000)
                 }
               })

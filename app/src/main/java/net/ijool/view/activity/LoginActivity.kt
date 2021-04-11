@@ -24,7 +24,6 @@ class LoginActivity : AppCompatActivity() {
   private lateinit var username: EditText
   private lateinit var password: EditText
   private lateinit var signIn: Button
-  private lateinit var signUp: TextView
   private lateinit var forgetPassword: TextView
 
   override fun onCreate(savedInstanceState: Bundle?) {
@@ -37,7 +36,6 @@ class LoginActivity : AppCompatActivity() {
     username = findViewById(R.id.editTextUsername)
     password = findViewById(R.id.editTextPassword)
     signIn = findViewById(R.id.buttonLogin)
-    signUp = findViewById(R.id.textViewRegister)
     forgetPassword = findViewById(R.id.textViewForgetPassword)
 
     //username.setText("menma977")
@@ -65,12 +63,6 @@ class LoginActivity : AppCompatActivity() {
           loading.closeDialog()
         })
       }
-    }
-
-    signUp.setOnClickListener {
-      move = Intent(Intent.ACTION_VIEW, Uri.parse("https://ijool.net/register"))
-      startActivity(move)
-      finish()
     }
 
     forgetPassword.setOnClickListener {
