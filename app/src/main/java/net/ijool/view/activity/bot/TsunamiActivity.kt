@@ -43,6 +43,7 @@ class TsunamiActivity : AppCompatActivity() {
   private var seed: String = (100000..999999).random().toString()
 
   override fun onCreate(savedInstanceState: Bundle?) {
+
     super.onCreate(savedInstanceState)
     setContentView(R.layout.activity_tsunami)
 

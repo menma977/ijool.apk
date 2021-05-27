@@ -36,7 +36,7 @@ class DogeController(private val context: Context) {
       .put("BasePayIn", tsunamiPayIn(payIn))
       .put("High", "499999")
       .put("Low", "0")
-      .put("MaxBets", "16")
+      .put("MaxBets", "200")
       .put("ResetOnWin", "1")
       .put("ResetOnLose", "0")
       .put("IncreaseOnWinPercent", "0")
@@ -55,12 +55,16 @@ class DogeController(private val context: Context) {
 
   private fun tsunamiPayIn(payIn: BigDecimal): String {
     val coinAmount = Coin.decimalToCoin(payIn)
-    return if (coinAmount < BigDecimal(100)) {
+    return if (coinAmount < BigDecimal(10)) {
+      "100"
+    } else if (coinAmount >= BigDecimal(10) && coinAmount < BigDecimal(100)) {
+      "1000"
+    } else if (coinAmount >= BigDecimal(100) && coinAmount < BigDecimal(10000)) {
+      "10000"
+    } else if (coinAmount >= BigDecimal(1000) && coinAmount < BigDecimal(10000)) {
       "100000"
-    } else if (coinAmount >= BigDecimal(100) && coinAmount < BigDecimal(1000)) {
-      "1000000"
     } else {
-      "10000000"
+      "1000000"
     }
   }
 
