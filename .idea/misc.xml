@@ -1,5 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
+  <component name="DesignSurface">
+    <option name="filePathToZoomLevelMap">
+      <map>
+        <entry key="..\:/project/Work/Android/Kotlin/ijool/app/src/main/res/drawable/edit_text.xml" value="0.37864583333333335" />
+        <entry key="..\:/project/Work/Android/Kotlin/ijool/app/src/main/res/layout/activity_login.xml" value="0.2128623188405797" />
+        <entry key="..\:/project/Work/Android/Kotlin/ijool/app/src/main/res/layout/activity_ninku.xml" value="0.3212962962962963" />
+        <entry key="..\:/project/Work/Android/Kotlin/ijool/app/src/main/res/layout/activity_withdraw.xml" value="0.1648148148148148" />
+        <entry key="..\:/project/Work/Android/Kotlin/ijool/app/src/main/res/layout/fragment_bot.xml" value="0.3212962962962963" />
+        <entry key="..\:/project/Work/Android/Kotlin/ijool/app/src/main/res/layout/layout_modal_qr.xml" value="0.1" />
+      </map>
+    </option>
+  </component>
   <component name="FrameworkDetectionExcludesConfiguration">
     <file type="web" url="file://$PROJECT_DIR$" />
   </component>
